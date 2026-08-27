@@ -4,6 +4,7 @@ import {
   EventTimeline,
   EventTimelineSet,
   EventType,
+  IContent,
   IMentions,
   IPowerLevelsContent,
   IPushRule,
@@ -572,4 +573,27 @@ export const guessPerfectParent = (
   });
 
   return perfectParent;
+};
+
+export const getLastThreadEventId = (room: Room, threadRootId: string): string => {
+  const events = room.getLiveTimeline().getEvents();
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const evt = events[i];
+    if (evt.threadRootId === threadRootId && !reactionOrEditEvent(evt)) {
+      return evt.getId() ?? threadRootId;
+    }
+  }
+  return threadRootId;
+};
+
+// Plain text preview of a message, using the HTML body so markdown syntax is not shown.
+export const getMessagePreviewText = (content: IContent): string => {
+  const { body, formatted_body: formattedBody, format } = content;
+  if (typeof formattedBody === 'string' && format === 'org.matrix.custom.html') {
+    const doc = new DOMParser().parseFromString(formattedBody, 'text/html');
+    doc.querySelector('mx-reply')?.remove();
+    const text = doc.body.textContent?.replace(/\s+/g, ' ').trim();
+    if (text) return text;
+  }
+  return typeof body === 'string' ? trimReplyFromBody(body).replace(/\s+/g, ' ').trim() : '';
 };

@@ -2,6 +2,7 @@
 import React, {
   Dispatch,
   MouseEventHandler,
+  ReactNode,
   RefObject,
   SetStateAction,
   useCallback,
@@ -79,6 +80,7 @@ import {
   getEventReactions,
   getLatestEditableEvt,
   getMemberDisplayName,
+  getMessagePreviewText,
   getReactionContent,
   isMembershipChanged,
   reactionOrEditEvent,
@@ -86,7 +88,7 @@ import {
 import { useSetting } from '../../state/hooks/settings';
 import { MessageLayout, settingsAtom } from '../../state/settings';
 import { useMatrixEventRenderer } from '../../hooks/useMatrixEventRenderer';
-import { Reactions, Message, Event, EncryptedContent } from './message';
+import { Reactions, Message, Event, EncryptedContent, ThreadGroup } from './message';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
 import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { RoomIntro } from '../../components/room-intro';
@@ -182,6 +184,10 @@ export const getLinkedTimelines = (timeline: EventTimeline): EventTimeline[] => 
 };
 
 export const timelineToEventsCount = (t: EventTimeline) => t.getEvents().length;
+// Thread fallback replies are not quoted, only explicit replies are.
+export const getExplicitReplyEventId = (mEvent: MatrixEvent): string | undefined =>
+  mEvent.getContent()['m.relates_to']?.is_falling_back ? undefined : mEvent.replyEventId;
+
 export const getTimelinesEventsCount = (timelines: EventTimeline[]): number => {
   const timelineEventCountReducer = (count: number, tm: EventTimeline) =>
     count + timelineToEventsCount(tm);
@@ -512,6 +518,15 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     | undefined
   >();
   const alive = useAlive();
+  const [openThreads, setOpenThreads] = useState<Set<string>>(() => new Set());
+  const toggleThread = useCallback((rootId: string) => {
+    setOpenThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(rootId)) next.delete(rootId);
+      else next.add(rootId);
+      return next;
+    });
+  }, []);
 
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({
@@ -653,6 +668,11 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       const evtTimeline = getEventTimeline(room, evtId);
       const absoluteIndex =
         evtTimeline && getEventIdAbsoluteIndex(timeline.linkedTimelines, evtTimeline, evtId);
+
+      const threadRootId = room.findEventById(evtId)?.threadRootId;
+      if (threadRootId) {
+        setOpenThreads((prev) => (prev.has(threadRootId) ? prev : new Set(prev).add(threadRootId)));
+      }
 
       if (typeof absoluteIndex === 'number') {
         const scrolled = scrollToItem(absoluteIndex, {
@@ -1017,6 +1037,25 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   );
   const { t } = useTranslation();
 
+  // Map loaded event ids to absolute index and collect thread reply indices per root.
+  // A thread is anchored at its last loaded reply so it sits at the position of its newest
+  // message. The root (when loaded) and all replies render at the anchor.
+  const eventIndexMap = new Map<string, number>();
+  const threadReplies = new Map<string, number[]>();
+  let absIndex = 0;
+  timeline.linkedTimelines.forEach((tm) => {
+    tm.getEvents().forEach((evt) => {
+      const id = evt.getId();
+      if (id) eventIndexMap.set(id, absIndex);
+      const rootId = evt.threadRootId;
+      if (rootId && !reactionOrEditEvent(evt)) {
+        const replies = threadReplies.get(rootId) ?? [];
+        replies.push(absIndex);
+        threadReplies.set(rootId, replies);
+      }
+      absIndex += 1;
+    });
+  });
   const renderMatrixEvent = useMatrixEventRenderer<
     [string, MatrixEvent, number, EventTimelineSet, boolean]
   >(
@@ -1025,7 +1064,8 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const reactionRelations = getEventReactions(timelineSet, mEventId);
         const reactions = reactionRelations && reactionRelations.getSortedAnnotationsByKey();
         const hasReactions = reactions && reactions.length > 0;
-        const { replyEventId, threadRootId } = mEvent;
+        const { threadRootId } = mEvent;
+        const replyEventId = getExplicitReplyEventId(mEvent);
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
@@ -1091,6 +1131,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             legacyUsernameColor={legacyUsernameColor || direct}
             hour24Clock={hour24Clock}
             dateFormatString={dateFormatString}
+            threadRoot={threadReplies.has(mEventId)}
           >
             {mEvent.isRedacted() ? (
               <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
@@ -1115,7 +1156,8 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const reactionRelations = getEventReactions(timelineSet, mEventId);
         const reactions = reactionRelations && reactionRelations.getSortedAnnotationsByKey();
         const hasReactions = reactions && reactions.length > 0;
-        const { replyEventId, threadRootId } = mEvent;
+        const { threadRootId } = mEvent;
+        const replyEventId = getExplicitReplyEventId(mEvent);
         const highlighted = focusItem?.index === item && focusItem.highlight;
 
         return (
@@ -1173,6 +1215,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             legacyUsernameColor={legacyUsernameColor || direct}
             hour24Clock={hour24Clock}
             dateFormatString={dateFormatString}
+            threadRoot={threadReplies.has(mEventId)}
           >
             <EncryptedContent mEvent={mEvent}>
               {() => {
@@ -1276,6 +1319,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             legacyUsernameColor={legacyUsernameColor || direct}
             hour24Clock={hour24Clock}
             dateFormatString={dateFormatString}
+            threadRoot={threadReplies.has(mEventId)}
           >
             {mEvent.isRedacted() ? (
               <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
@@ -1619,38 +1663,126 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     }
   );
 
+  type RenderableEvent = [MatrixEvent, string, EventTimelineSet];
+  const getRenderableEvent = (item: number): RenderableEvent | undefined => {
+    const [eventTimeline, baseIndex] = getTimelineAndBaseIndex(timeline.linkedTimelines, item);
+    if (!eventTimeline) return undefined;
+    const mEvent = getTimelineEvent(eventTimeline, getTimelineRelativeIndex(item, baseIndex));
+    const mEventId = mEvent?.getId();
+    if (!mEvent || !mEventId) return undefined;
+    const eventSender = mEvent.getSender();
+    if (eventSender && ignoredUsersSet.has(eventSender)) return undefined;
+    if (mEvent.isRedacted() && !showHiddenEvents) return undefined;
+    return [mEvent, mEventId, eventTimeline.getTimelineSet()];
+  };
+
+  const getThreadReplies = (rootId: string): [number, RenderableEvent][] => {
+    const replies: [number, RenderableEvent][] = [];
+    (threadReplies.get(rootId) ?? []).forEach((i) => {
+      const renderable = getRenderableEvent(i);
+      if (renderable) replies.push([i, renderable]);
+    });
+    return replies;
+  };
+  const getThreadAnchor = (rootId: string): number | undefined => {
+    const replies = getThreadReplies(rootId);
+    return replies.length > 0 ? replies[replies.length - 1][0] : eventIndexMap.get(rootId);
+  };
+
+  const renderThreadGroup = (rootId: string, headItem: number): ReactNode => {
+    const replies = getThreadReplies(rootId).filter(([i]) => i !== headItem);
+    if (replies.length === 0) return null;
+
+    const [, [lastEvent, lastEventId, lastTimelineSet]] = replies[replies.length - 1];
+    const lastSender = lastEvent.getSender() ?? '';
+    const lastSenderName =
+      getMemberDisplayName(room, lastSender) ?? getMxIdLocalPart(lastSender) ?? lastSender;
+    const lastContent =
+      getEditedEvent(lastEventId, lastEvent, lastTimelineSet)?.getContent()['m.new_content'] ??
+      lastEvent.getContent();
+    const lastBody = getMessagePreviewText(lastContent);
+
+    // Replies after the read marker (or all loaded replies when the marker is not loaded)
+    // that were not sent by us are unread.
+    const readUptoEventId = readUptoEventIdRef.current;
+    const readUptoItem = readUptoEventId ? eventIndexMap.get(readUptoEventId) ?? -1 : undefined;
+    const unreadCount =
+      readUptoItem === undefined
+        ? 0
+        : replies.filter(([i, [evt]]) => i > readUptoItem && evt.getSender() !== mx.getUserId())
+            .length;
+
+    let prevReply: MatrixEvent | undefined;
+    return (
+      <ThreadGroup
+        open={openThreads.has(rootId)}
+        onToggle={() => toggleThread(rootId)}
+        replyCount={replies.length}
+        unreadCount={unreadCount}
+        lastSenderName={lastSenderName}
+        lastBody={lastBody}
+      >
+        {replies.map(([i, [mEvent, mEventId, timelineSet]]) => {
+          const collapsed =
+            prevReply !== undefined &&
+            prevReply.getSender() === mEvent.getSender() &&
+            prevReply.getType() === mEvent.getType() &&
+            minuteDifference(prevReply.getTs(), mEvent.getTs()) < 2;
+          prevReply = mEvent;
+          return renderMatrixEvent(
+            mEvent.getType(),
+            typeof mEvent.getStateKey() === 'string',
+            mEventId,
+            mEvent,
+            i,
+            timelineSet,
+            collapsed
+          );
+        })}
+      </ThreadGroup>
+    );
+  };
+
   let prevEvent: MatrixEvent | undefined;
   let isPrevRendered = false;
   let newDivider = false;
   let dayDivider = false;
-  const eventRenderer = (item: number) => {
-    const [eventTimeline, baseIndex] = getTimelineAndBaseIndex(timeline.linkedTimelines, item);
-    if (!eventTimeline) return null;
-    const timelineSet = eventTimeline?.getTimelineSet();
-    const mEvent = getTimelineEvent(eventTimeline, getTimelineRelativeIndex(item, baseIndex));
-    const mEventId = mEvent?.getId();
+  const eventRenderer = (anchorItem: number) => {
+    const anchorRenderable = getRenderableEvent(anchorItem);
+    if (!anchorRenderable) return null;
+    const [anchorEvent, anchorEventId] = anchorRenderable;
 
-    if (!mEvent || !mEventId) return null;
+    // Thread events render together at the thread anchor instead of at their own position.
+    const threadId = reactionOrEditEvent(anchorEvent)
+      ? undefined
+      : anchorEvent.threadRootId ?? (threadReplies.has(anchorEventId) ? anchorEventId : undefined);
+    if (threadId && getThreadAnchor(threadId) !== anchorItem) return null;
 
+    // The head message is the root when loaded, otherwise the first loaded reply.
+    let item = anchorItem;
+    if (threadId) {
+      const rootItem = eventIndexMap.get(threadId);
+      const rootRenderable = rootItem !== undefined && getRenderableEvent(rootItem);
+      item = rootRenderable ? rootItem : getThreadReplies(threadId)[0]?.[0] ?? anchorItem;
+    }
+    const renderable = getRenderableEvent(item);
+    if (!renderable) return null;
+    const [mEvent, mEventId, timelineSet] = renderable;
     const eventSender = mEvent.getSender();
-    if (eventSender && ignoredUsersSet.has(eventSender)) {
-      return null;
-    }
-    if (mEvent.isRedacted() && !showHiddenEvents) {
-      return null;
-    }
 
+    // Dividers and grouping follow the anchor since that is the timeline position.
     if (!newDivider && readUptoEventIdRef.current) {
       newDivider = prevEvent?.getId() === readUptoEventIdRef.current;
     }
     if (!dayDivider) {
-      dayDivider = prevEvent ? !inSameDay(prevEvent.getTs(), mEvent.getTs()) : false;
+      dayDivider = prevEvent ? !inSameDay(prevEvent.getTs(), anchorEvent.getTs()) : false;
     }
 
     const collapsed =
+      !threadId &&
       isPrevRendered &&
       !dayDivider &&
-      (!newDivider || eventSender === mx.getUserId()) &&
+      (!newDivider || anchorEvent.getSender() === mx.getUserId()) &&
       prevEvent !== undefined &&
       prevEvent.getSender() === eventSender &&
       prevEvent.getType() === mEvent.getType() &&
@@ -1667,11 +1799,12 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           timelineSet,
           collapsed
         );
-    prevEvent = mEvent;
-    isPrevRendered = !!eventJSX;
+    const threadGroupJSX = eventJSX && threadId ? renderThreadGroup(threadId, item) : null;
+    prevEvent = anchorEvent;
+    isPrevRendered = !!eventJSX && !threadGroupJSX;
 
     const newDividerJSX =
-      newDivider && eventJSX && eventSender !== mx.getUserId() ? (
+      newDivider && eventJSX && anchorEvent.getSender() !== mx.getUserId() ? (
         <MessageBase space={messageSpacing}>
           <TimelineDivider style={{ color: color.Success.Main }} variant="Inherit">
             <Badge as="span" size="500" variant="Success" fill="Solid" radii="300">
@@ -1688,9 +1821,9 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             <Badge as="span" size="500" variant="Secondary" fill="None" radii="300">
               <Text size="L400">
                 {(() => {
-                  if (today(mEvent.getTs())) return 'Today';
-                  if (yesterday(mEvent.getTs())) return 'Yesterday';
-                  return timeDayMonthYear(mEvent.getTs());
+                  if (today(anchorEvent.getTs())) return 'Today';
+                  if (yesterday(anchorEvent.getTs())) return 'Yesterday';
+                  return timeDayMonthYear(anchorEvent.getTs());
                 })()}
               </Text>
             </Badge>
@@ -1698,7 +1831,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         </MessageBase>
       ) : null;
 
-    if (eventJSX && (newDividerJSX || dayDividerJSX)) {
+    if (eventJSX && (newDividerJSX || dayDividerJSX || threadGroupJSX)) {
       if (newDividerJSX) newDivider = false;
       if (dayDividerJSX) dayDivider = false;
 
@@ -1707,6 +1840,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           {newDividerJSX}
           {dayDividerJSX}
           {eventJSX}
+          {threadGroupJSX}
         </React.Fragment>
       );
     }
