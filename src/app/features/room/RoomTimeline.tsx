@@ -80,7 +80,7 @@ import {
   getEventReactions,
   getLatestEditableEvt,
   getMemberDisplayName,
-  trimReplyFromBody,
+  getMessagePreviewText,
   getReactionContent,
   isMembershipChanged,
   reactionOrEditEvent,
@@ -1700,8 +1700,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     const lastContent =
       getEditedEvent(lastEventId, lastEvent, lastTimelineSet)?.getContent()['m.new_content'] ??
       lastEvent.getContent();
-    const lastBody =
-      typeof lastContent.body === 'string' ? trimReplyFromBody(lastContent.body) : '';
+    const lastBody = getMessagePreviewText(lastContent);
 
     // Replies after the read marker (or all loaded replies when the marker is not loaded)
     // that were not sent by us are unread.
