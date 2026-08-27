@@ -13,7 +13,7 @@
     "https://raw.githubusercontent.com/codev/cinny/dev/cloudron/screenshot-1.png"
   ],
   "tags": ["chat", "matrix", "messaging"],
-  "version": "4.12.6-1",
+  "version": "4.12.6-2",
   "minBoxVersion": "9.1.0",
   "manifestVersion": 2,
   "healthCheckPath": "/config.json",

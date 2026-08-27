@@ -38,6 +38,44 @@
             "creationDate": "Thu, 27 Aug 2026 09:24:43 GMT",
             "ts": "Thu, 27 Aug 2026 09:27:29 GMT",
             "publishState": "published"
+        },
+        "4.12.6-2": {
+            "manifest": {
+                "id": "uk.codev.cinny",
+                "title": "Cinny",
+                "author": "Cinny contributors",
+                "contactEmail": "marc@codev.uk",
+                "packagerName": "Codev",
+                "packagerUrl": "https://codev.uk",
+                "description": "Cinny is a Matrix client focused on simplicity, elegance and security.\n\nThis fork has extra group threading features.\n",
+                "changelog": "* This is 4.12.6-2 - Cinny 4.12.6 with threads and Cloudron packaging\n* First Cloudron package\n* Cinny 4.12.6 with thread grouping\n",
+                "tagline": "Matrix client with grouped threads",
+                "iconUrl": "https://raw.githubusercontent.com/codev/cinny/dev/cloudron/icon.png",
+                "mediaLinks": [
+                    "https://raw.githubusercontent.com/codev/cinny/dev/cloudron/screenshot-1.png"
+                ],
+                "tags": [
+                    "chat",
+                    "matrix",
+                    "messaging"
+                ],
+                "version": "4.12.6-2",
+                "minBoxVersion": "9.1.0",
+                "manifestVersion": 2,
+                "healthCheckPath": "/config.json",
+                "httpPort": 8000,
+                "addons": {
+                    "localstorage": {}
+                },
+                "memoryLimit": 268435456,
+                "website": "https://cinny.in",
+                "documentationUrl": "https://github.com/codev/cinny",
+                "postInstallMessage": "Edit /app/data/config.json in File Manager to set the homeserver list and default homeserver along with any other settings, then restart the app.\n",
+                "dockerImage": "ghcr.io/codev/cinny:4.12.6-2"
+            },
+            "creationDate": "Thu, 27 Aug 2026 10:19:40 GMT",
+            "ts": "Thu, 27 Aug 2026 10:23:00 GMT",
+            "publishState": "published"
         }
     }
 }
