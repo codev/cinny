@@ -504,6 +504,8 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Maps an event index to the data-message-item value of its rendered element, set on render
+  const displayItemRef = useRef<(index: number) => number>((index) => index);
   const scrollToBottomRef = useRef({
     count: 0,
     smooth: true,
@@ -512,6 +514,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   const [focusItem, setFocusItem] = useState<
     | {
         index: number;
+        eventId: string;
         scrollTo: boolean;
         highlight: boolean;
       }
@@ -578,12 +581,15 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       range: timeline.range,
       onRangeChange: useCallback((r) => setTimeline((cs) => ({ ...cs, range: r })), []),
       getScrollElement,
-      getItemElement: useCallback(
-        (index: number) =>
-          (scrollRef.current?.querySelector(`[data-message-item="${index}"]`) as HTMLElement) ??
-          undefined,
-        []
-      ),
+      getItemElement: useCallback((index: number) => {
+        // Thread events render at their thread anchor, look them up by display index
+        const displayIndex = displayItemRef.current(index);
+        return (
+          (scrollRef.current?.querySelector(
+            `[data-message-item="${displayIndex}"]`
+          ) as HTMLElement) ?? undefined
+        );
+      }, []),
       onEnd: handleTimelinePagination,
     });
 
@@ -597,6 +603,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
 
         setFocusItem({
           index: evtAbsIndex,
+          eventId: evtId,
           scrollTo: true,
           highlight: evtId !== readUptoEventIdRef.current,
         });
@@ -683,6 +690,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         if (onScroll) onScroll(scrolled);
         setFocusItem({
           index: absoluteIndex,
+          eventId: evtId,
           scrollTo: false,
           highlight,
         });
@@ -1066,7 +1074,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const hasReactions = reactions && reactions.length > 0;
         const { threadRootId } = mEvent;
         const replyEventId = getExplicitReplyEventId(mEvent);
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
 
         const editedEvent = getEditedEvent(mEventId, mEvent, timelineSet);
         const getContent = (() =>
@@ -1158,7 +1166,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const hasReactions = reactions && reactions.length > 0;
         const { threadRootId } = mEvent;
         const replyEventId = getExplicitReplyEventId(mEvent);
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
 
         return (
           <Message
@@ -1278,7 +1286,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const reactionRelations = getEventReactions(timelineSet, mEventId);
         const reactions = reactionRelations && reactionRelations.getSortedAnnotationsByKey();
         const hasReactions = reactions && reactions.length > 0;
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
 
         return (
           <Message
@@ -1344,7 +1352,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         if (membershipChanged && hideMembershipEvents) return null;
         if (!membershipChanged && hideNickAvatarEvents) return null;
 
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
         const parsed = parseMemberEvent(mEvent);
 
         const timeJSX = (
@@ -1385,7 +1393,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         );
       },
       [StateEvent.RoomName]: (mEventId, mEvent, item) => {
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
         const senderId = mEvent.getSender() ?? '';
         const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -1428,7 +1436,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         );
       },
       [StateEvent.RoomTopic]: (mEventId, mEvent, item) => {
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
         const senderId = mEvent.getSender() ?? '';
         const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -1471,7 +1479,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         );
       },
       [StateEvent.RoomAvatar]: (mEventId, mEvent, item) => {
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
         const senderId = mEvent.getSender() ?? '';
         const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -1514,7 +1522,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         );
       },
       [StateEvent.GroupCallMemberPrefix]: (mEventId, mEvent, item) => {
-        const highlighted = focusItem?.index === item && focusItem.highlight;
+        const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
         const senderId = mEvent.getSender() ?? '';
         const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -1567,7 +1575,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     },
     (mEventId, mEvent, item) => {
       if (!showHiddenEvents) return null;
-      const highlighted = focusItem?.index === item && focusItem.highlight;
+      const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
       const senderId = mEvent.getSender() ?? '';
       const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -1617,7 +1625,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       if (mEvent.getRelation()) return null;
       if (mEvent.isRedaction()) return null;
 
-      const highlighted = focusItem?.index === item && focusItem.highlight;
+      const highlighted = focusItem?.eventId === mEventId && focusItem.highlight;
       const senderId = mEvent.getSender() ?? '';
       const senderName = getMemberDisplayName(room, senderId) || getMxIdLocalPart(senderId);
 
@@ -1688,8 +1696,20 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     const replies = getThreadReplies(rootId);
     return replies.length > 0 ? replies[replies.length - 1][0] : eventIndexMap.get(rootId);
   };
+  const getThreadIdOfEvent = (mEvent: MatrixEvent): string | undefined => {
+    if (reactionOrEditEvent(mEvent)) return undefined;
+    const id = mEvent.getId();
+    return mEvent.threadRootId ?? (id && threadReplies.has(id) ? id : undefined);
+  };
+  // All events of a thread share the anchor index as their data-message-item so DOM order
+  // follows index order, which scrollToItem relies on.
+  displayItemRef.current = (index: number): number => {
+    const renderable = getRenderableEvent(index);
+    const threadId = renderable && getThreadIdOfEvent(renderable[0]);
+    return (threadId && getThreadAnchor(threadId)) ?? index;
+  };
 
-  const renderThreadGroup = (rootId: string, headItem: number): ReactNode => {
+  const renderThreadGroup = (rootId: string, headItem: number, anchorItem: number): ReactNode => {
     const replies = getThreadReplies(rootId).filter(([i]) => i !== headItem);
     if (replies.length === 0) return null;
 
@@ -1722,7 +1742,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         lastSenderName={lastSenderName}
         lastBody={lastBody}
       >
-        {replies.map(([i, [mEvent, mEventId, timelineSet]]) => {
+        {replies.map(([, [mEvent, mEventId, timelineSet]]) => {
           const collapsed =
             prevReply !== undefined &&
             prevReply.getSender() === mEvent.getSender() &&
@@ -1734,7 +1754,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             typeof mEvent.getStateKey() === 'string',
             mEventId,
             mEvent,
-            i,
+            anchorItem,
             timelineSet,
             collapsed
           );
@@ -1750,12 +1770,10 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   const eventRenderer = (anchorItem: number) => {
     const anchorRenderable = getRenderableEvent(anchorItem);
     if (!anchorRenderable) return null;
-    const [anchorEvent, anchorEventId] = anchorRenderable;
+    const [anchorEvent] = anchorRenderable;
 
     // Thread events render together at the thread anchor instead of at their own position.
-    const threadId = reactionOrEditEvent(anchorEvent)
-      ? undefined
-      : anchorEvent.threadRootId ?? (threadReplies.has(anchorEventId) ? anchorEventId : undefined);
+    const threadId = getThreadIdOfEvent(anchorEvent);
     if (threadId && getThreadAnchor(threadId) !== anchorItem) return null;
 
     // The head message is the root when loaded, otherwise the first loaded reply.
@@ -1771,8 +1789,12 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
     const eventSender = mEvent.getSender();
 
     // Dividers and grouping follow the anchor since that is the timeline position.
-    if (!newDivider && readUptoEventIdRef.current) {
-      newDivider = prevEvent?.getId() === readUptoEventIdRef.current;
+    if (!newDivider && readUptoEventIdRef.current && prevEvent) {
+      const readUptoItem = eventIndexMap.get(readUptoEventIdRef.current);
+      newDivider =
+        readUptoItem !== undefined &&
+        anchorItem > readUptoItem &&
+        (eventIndexMap.get(prevEvent.getId() ?? '') ?? -1) <= readUptoItem;
     }
     if (!dayDivider) {
       dayDivider = prevEvent ? !inSameDay(prevEvent.getTs(), anchorEvent.getTs()) : false;
@@ -1795,11 +1817,12 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           typeof mEvent.getStateKey() === 'string',
           mEventId,
           mEvent,
-          item,
+          anchorItem,
           timelineSet,
           collapsed
         );
-    const threadGroupJSX = eventJSX && threadId ? renderThreadGroup(threadId, item) : null;
+    const threadGroupJSX =
+      eventJSX && threadId ? renderThreadGroup(threadId, item, anchorItem) : null;
     prevEvent = anchorEvent;
     isPrevRendered = !!eventJSX && !threadGroupJSX;
 
