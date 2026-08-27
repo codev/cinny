@@ -99,7 +99,12 @@ import {
   getImageMsgContent,
   getVideoMsgContent,
 } from './msgContent';
-import { getMemberDisplayName, getMentionContent, trimReplyFromBody } from '../../utils/room';
+import {
+  getLastThreadEventId,
+  getMemberDisplayName,
+  getMentionContent,
+  trimReplyFromBody,
+} from '../../utils/room';
 import { CommandAutocomplete } from './CommandAutocomplete';
 import { Command, SHRUG, TABLEFLIP, UNFLIP, useCommands } from '../../hooks/useCommands';
 import { mobileOrTablet } from '../../utils/user-agent';
@@ -361,15 +366,23 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         content.formatted_body = formattedBody;
       }
       if (replyDraft) {
+        const threadRootId =
+          replyDraft.relation?.rel_type === RelationType.Thread
+            ? replyDraft.relation.event_id
+            : undefined;
+        // Thread replies attach to the thread, in_reply_to is only a fallback to the last event.
+        const inReplyTo = threadRootId
+          ? getLastThreadEventId(room, threadRootId)
+          : replyDraft.eventId;
         content['m.relates_to'] = {
           'm.in_reply_to': {
-            event_id: replyDraft.eventId,
+            event_id: inReplyTo,
           },
         };
-        if (replyDraft.relation?.rel_type === RelationType.Thread) {
-          content['m.relates_to'].event_id = replyDraft.relation.event_id;
+        if (threadRootId) {
+          content['m.relates_to'].event_id = threadRootId;
           content['m.relates_to'].rel_type = RelationType.Thread;
-          content['m.relates_to'].is_falling_back = false;
+          content['m.relates_to'].is_falling_back = true;
         }
       }
       mx.sendMessage(roomId, content as any);
@@ -377,7 +390,17 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       resetEditorHistory(editor);
       setReplyDraft(undefined);
       sendTypingStatus(false);
-    }, [mx, roomId, editor, replyDraft, sendTypingStatus, setReplyDraft, isMarkdown, commands]);
+    }, [
+      mx,
+      roomId,
+      room,
+      editor,
+      replyDraft,
+      sendTypingStatus,
+      setReplyDraft,
+      isMarkdown,
+      commands,
+    ]);
 
     const handleKeyDown: KeyboardEventHandler = useCallback(
       (evt) => {

@@ -682,6 +682,7 @@ export type MessageProps = {
   legacyUsernameColor?: boolean;
   hour24Clock: boolean;
   dateFormatString: string;
+  threadRoot?: boolean;
 };
 export const Message = as<'div', MessageProps>(
   (
@@ -713,6 +714,7 @@ export const Message = as<'div', MessageProps>(
       legacyUsernameColor,
       hour24Clock,
       dateFormatString,
+      threadRoot,
       children,
       ...props
     },
@@ -872,7 +874,9 @@ export const Message = as<'div', MessageProps>(
       }, 100);
     };
 
-    const isThreadedMessage = mEvent.threadRootId !== undefined;
+    // Replies inside a thread and thread roots only offer "Reply in Thread".
+    const inThread = mEvent.threadRootId !== undefined;
+    const isThreadedMessage = inThread || !!threadRoot;
 
     return (
       <MessageBase
@@ -929,26 +933,26 @@ export const Message = as<'div', MessageProps>(
                     </IconButton>
                   </PopOut>
                 )}
-                <IconButton
-                  onClick={onReplyClick}
-                  data-event-id={mEvent.getId()}
-                  variant="SurfaceVariant"
-                  size="300"
-                  radii="300"
-                >
-                  <Icon src={Icons.ReplyArrow} size="100" />
-                </IconButton>
                 {!isThreadedMessage && (
                   <IconButton
-                    onClick={(ev) => onReplyClick(ev, true)}
+                    onClick={onReplyClick}
                     data-event-id={mEvent.getId()}
                     variant="SurfaceVariant"
                     size="300"
                     radii="300"
                   >
-                    <Icon src={Icons.ThreadPlus} size="100" />
+                    <Icon src={Icons.ReplyArrow} size="100" />
                   </IconButton>
                 )}
+                <IconButton
+                  onClick={(ev) => onReplyClick(ev, !inThread)}
+                  data-event-id={mEvent.getId()}
+                  variant="SurfaceVariant"
+                  size="300"
+                  radii="300"
+                >
+                  <Icon src={Icons.ThreadPlus} size="100" />
+                </IconButton>
                 {canEditEvent(mx, mEvent) && onEditId && (
                   <IconButton
                     onClick={() => onEditId(mEvent.getId())}
@@ -1009,33 +1013,14 @@ export const Message = as<'div', MessageProps>(
                               onClose={closeMenu}
                             />
                           )}
-                          <MenuItem
-                            size="300"
-                            after={<Icon size="100" src={Icons.ReplyArrow} />}
-                            radii="300"
-                            data-event-id={mEvent.getId()}
-                            onClick={(evt: any) => {
-                              onReplyClick(evt);
-                              closeMenu();
-                            }}
-                          >
-                            <Text
-                              className={css.MessageMenuItemText}
-                              as="span"
-                              size="T300"
-                              truncate
-                            >
-                              Reply
-                            </Text>
-                          </MenuItem>
                           {!isThreadedMessage && (
                             <MenuItem
                               size="300"
-                              after={<Icon src={Icons.ThreadPlus} size="100" />}
+                              after={<Icon size="100" src={Icons.ReplyArrow} />}
                               radii="300"
                               data-event-id={mEvent.getId()}
                               onClick={(evt: any) => {
-                                onReplyClick(evt, true);
+                                onReplyClick(evt);
                                 closeMenu();
                               }}
                             >
@@ -1045,10 +1030,29 @@ export const Message = as<'div', MessageProps>(
                                 size="T300"
                                 truncate
                               >
-                                Reply in Thread
+                                Reply
                               </Text>
                             </MenuItem>
                           )}
+                          <MenuItem
+                            size="300"
+                            after={<Icon src={Icons.ThreadPlus} size="100" />}
+                            radii="300"
+                            data-event-id={mEvent.getId()}
+                            onClick={(evt: any) => {
+                              onReplyClick(evt, !inThread);
+                              closeMenu();
+                            }}
+                          >
+                            <Text
+                              className={css.MessageMenuItemText}
+                              as="span"
+                              size="T300"
+                              truncate
+                            >
+                              Reply in Thread
+                            </Text>
+                          </MenuItem>
                           {canEditEvent(mx, mEvent) && onEditId && (
                             <MenuItem
                               size="300"
