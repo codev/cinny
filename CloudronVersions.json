@@ -36,8 +36,8 @@
                 "dockerImage": "ghcr.io/codev/cinny:4.12.6-1"
             },
             "creationDate": "Thu, 27 Aug 2026 09:24:43 GMT",
-            "ts": "Thu, 27 Aug 2026 09:24:43 GMT",
-            "publishState": "testing"
+            "ts": "Thu, 27 Aug 2026 09:27:29 GMT",
+            "publishState": "published"
         }
     }
 }

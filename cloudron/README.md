@@ -33,3 +33,12 @@ Add a release to the catalogue:
 cloudron versions add --image ghcr.io/codev/cinny:4.12.6-1 --state testing
 cloudron versions verify
 ```
+
+## Installing on a Cloudron server
+
+Install on the dashboard:
+
+1. App Store -> Add custom app
+2. https://raw.githubusercontent.com/codev/cinny/dev/CloudronVersions.json
+3. Set the location and install
+4. Edit /app/data/config.json in the File Manager to set homeserverList and defaultHomeserver and other settings, then restart the app
