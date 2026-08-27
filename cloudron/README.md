@@ -1,0 +1,34 @@
+# Cloudron package
+
+Files:
+
+- ../CloudronManifest.json app manifest, bump version with each release
+- ../CloudronVersions.json catalogue of published image versions
+- Dockerfile builds the static bundle and serves it with Caddy on port 8000
+- Caddyfile, start.sh runtime config and entrypoint
+- icon.png, screenshot-1.png store listing images
+- ../.github/workflows/cloudron-image.yml builds and pushes the image to ghcr.io
+
+Build and install on a Cloudron:
+
+```
+cd /path/to/cinny
+docker build -f cloudron/Dockerfile -t ghcr.io/codev/cinny:4.12.6-1 .
+docker push ghcr.io/codev/cinny:4.12.6-1
+cloudron install --image ghcr.io/codev/cinny:4.12.6-1 --location chat
+```
+
+Update an existing install:
+
+```
+cloudron update --app chat.example.coop --image ghcr.io/codev/cinny:4.12.6-1
+```
+
+Homeserver settings are in /app/data/config.json, seeded from the repo config.json on first start. Edit it with the File Manager and restart.
+
+Add a release to the catalogue:
+
+```
+cloudron versions add --image ghcr.io/codev/cinny:4.12.6-1 --state testing
+cloudron versions verify
+```
