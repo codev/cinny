@@ -4,6 +4,7 @@ Files:
 
 - ../CloudronManifest.json app manifest, bump version with each release
 - ../CloudronVersions.json catalogue of published image versions
+- CHANGELOG section headers use the base version without the -N suffix, e.g. [4.12.6] for 4.12.6-1, the CLI strips the prerelease when looking it up
 - Dockerfile builds the static bundle and serves it with Caddy on port 8000
 - Caddyfile, start.sh runtime config and entrypoint
 - icon.png, screenshot-1.png store listing images
