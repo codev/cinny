@@ -1,0 +1,28 @@
+{
+  "id": "uk.codev.cinny",
+  "title": "Cinny",
+  "author": "Cinny contributors",
+  "contactEmail": "marc@codev.uk",
+  "packagerName": "Codev",
+  "packagerUrl": "https://codev.uk",
+  "description": "file://cloudron/DESCRIPTION.md",
+  "changelog": "file://cloudron/CHANGELOG",
+  "tagline": "Matrix client with grouped threads",
+  "iconUrl": "https://raw.githubusercontent.com/codev/cinny/dev/cloudron/icon.png",
+  "mediaLinks": [
+    "https://raw.githubusercontent.com/codev/cinny/dev/cloudron/screenshot-1.png"
+  ],
+  "tags": ["chat", "matrix", "messaging"],
+  "version": "4.12.6-1",
+  "minBoxVersion": "9.1.0",
+  "manifestVersion": 2,
+  "healthCheckPath": "/config.json",
+  "httpPort": 8000,
+  "addons": {
+    "localstorage": {}
+  },
+  "memoryLimit": 268435456,
+  "website": "https://cinny.in",
+  "documentationUrl": "https://github.com/codev/cinny",
+  "postInstallMessage": "file://cloudron/POSTINSTALL.md"
+}

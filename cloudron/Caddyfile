@@ -1,0 +1,24 @@
+# Serve HTTP on 8000 (httpPort in CloudronManifest.json)
+# Cloudron takes care of https
+
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8000 {
+	encode gzip
+
+	# Editable config lives on the data volume
+	handle /config.json {
+		root * /app/data
+		file_server
+	}
+
+	handle {
+		root * /app/code/dist
+		try_files {path} /index.html
+		file_server
+	}
+}
